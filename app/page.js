@@ -19,7 +19,7 @@ export default function Home() {
   // OpenAI
   const openai = new OpenAI({
     apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-    dangerouslyAllowBrowser: true, 
+    dangerouslyAllowBrowser: true,
   });
 
   const handleCameraAccess = async () => {
@@ -43,8 +43,9 @@ export default function Home() {
     })
     setInventory(inventoryList)
   }
-
+  const normalizeName = (name) => name.toLowerCase();
   const addItem = async (item) => {
+    const normalizedItem = normalizeName(item);
     const docRef = doc(collection(firestore, 'inventory'), item)
     const docSnap = await getDoc(docRef)
 
@@ -59,6 +60,7 @@ export default function Home() {
   };
 
   const removeItem = async (item) => {
+    const normalizedItem = normalizeName(item);
     const docRef = doc(collection(firestore, 'inventory'), item)
     const docSnap = await getDoc(docRef)
 
@@ -100,7 +102,7 @@ export default function Home() {
           {
             role: "user",
             content: [
-              { type: "text", text: "What is the name of the product in the image? Only provide the product name without any additional text" },
+              { type: "text", text: "What kind of product I am holding in my hands? Just return the product name. You don't have to give my brand names, just return me type of thing I am holding in my hands and also just return the name" },
               {
                 type: "image_url",
                 image_url: {
@@ -113,11 +115,13 @@ export default function Home() {
         ],
         max_tokens: 300,
       });
+      handleCameraClose();
       // const result = await response.json();
       // console.log('Analysis result:', result);
       const content = response.choices[0].message.content;
-      console.log('Detected product:', content);
-      await addItem(content);
+      const productName = content.replace(/^Detected product: You are holding a /, '').replace(/[.!?]$/, '').trim();
+      console.log('Detected product:', productName);
+      await addItem(productName);
     } catch (error) {
       console.error('Error submitting image:', error);
     }
@@ -204,23 +208,25 @@ export default function Home() {
             <h2 id="camera-modal-title">Camera Feed</h2>
             <video ref={videoRef} autoPlay style={{ width: '100%' }} />
             <canvas ref={canvasRef} style={{ display: 'none' }} width={400} height={300} />
-            <Button variant="outlined" color="secondary" onClick={captureImage} sx={{ mt: 2 }}>
-              Capture Image
-            </Button>
-            {imageDataUrl && (
-              <>
-                <img src={imageDataUrl} alt="Captured" style={{ width: '100%', marginTop: '10px' }} />
-                <Stack width="100%" direction="row" spacing={2}>
-                  <Button variant="contained" color="primary" onClick={downloadImage} sx={{ mt: 2 }}>
-                    Download Image
-                  </Button>
-                  <Button variant="contained" color="primary" onClick={submitImage}>Recognize Image</Button>
-                </Stack>
-              </>
-            )}
-            <Button variant="outlined" color="secondary" onClick={handleCameraClose} sx={{ mt: 2 }}>
-              Close
-            </Button>
+            <Stack spacing={2}>
+              <Button variant="outlined" color="secondary" onClick={captureImage} sx={{ mt: 2 }}>
+                Capture Image
+              </Button>
+              {imageDataUrl && (
+                <>
+                  <img src={imageDataUrl} alt="Captured" style={{ width: '100%', marginTop: '10px' }} />
+                  <Stack width="100%" direction="row" spacing={2}>
+                    <Button variant="contained" color="primary" onClick={downloadImage} sx={{ mt: 2 }}>
+                      Download Image
+                    </Button>
+                    <Button variant="contained" color="primary" onClick={submitImage} >Add Item</Button>
+                  </Stack>
+                </>
+              )}
+              <Button variant="outlined" color="secondary" onClick={handleCameraClose} sx={{ mt: 2 }}>
+                Close
+              </Button>
+              </Stack>
           </Box>
         </Modal>
       </Stack>
