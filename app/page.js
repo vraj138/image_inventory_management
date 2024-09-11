@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
 import { firestore } from "@/firebase";
 import { Box, Typography, Stack, TextField, Modal, Button } from '@mui/material'
 import { collection, deleteDoc, getDocs, query, setDoc, getDoc, doc } from "firebase/firestore";
 import OpenAI from 'openai';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
 
 export default function Home() {
   const [inventory, setInventory] = useState([])
@@ -17,17 +16,15 @@ export default function Home() {
   const [openCamera, setOpenCamera] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState('');
 
+  // OpenAI
   const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+    dangerouslyAllowBrowser: true, 
   });
-
-  // const genAI = new GoogleGenerativeAI();
 
   const handleCameraAccess = async () => {
     try {
-      // Request access to the camera
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      // Set the video element's source to the camera stream
       videoRef.current.srcObject = stream;
     } catch (error) {
       console.error("Error accessing the camera:", error);
@@ -53,13 +50,13 @@ export default function Home() {
 
     if (docSnap.exists()) {
       const { quantity } = docSnap.data()
-      await setDoc(docRef, { quantity: quantity + 1 })
+      await setDoc(docRef, { quantity: quantity + 1 });
     } else {
-      await setDoc(docRef, { quantity: 1 })
+      await setDoc(docRef, { quantity: 1 });
     }
 
     await updateInventory()
-  }
+  };
 
   const removeItem = async (item) => {
     const docRef = doc(collection(firestore, 'inventory'), item)
@@ -98,16 +95,17 @@ export default function Home() {
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
             content: [
-              { type: "text", text: "What is in this image?" },
+              { type: "text", text: "What is the name of the product in the image? Only provide the product name without any additional text" },
               {
                 type: "image_url",
                 image_url: {
-                  url: imageDataUrl, // Pass the image URL directly from the client-side
+                  "url": imageDataUrl,
+                  "detail": "low"
                 },
               },
             ],
@@ -115,8 +113,11 @@ export default function Home() {
         ],
         max_tokens: 300,
       });
-      const result = await response.json();
-      console.log('Analysis result:', result);
+      // const result = await response.json();
+      // console.log('Analysis result:', result);
+      const content = response.choices[0].message.content;
+      console.log('Detected product:', content);
+      await addItem(content);
     } catch (error) {
       console.error('Error submitting image:', error);
     }
