@@ -1,16 +1,23 @@
 'use client'
 
 import { useState, useEffect, useRef } from "react";
-import { firestore } from "@/firebase";
+import { firestore, auth, googleProvider } from "@/firebase";
 import { Box, Typography, Stack, TextField, Modal, Button } from '@mui/material'
 import { collection, deleteDoc, getDocs, query, setDoc, getDoc, doc } from "firebase/firestore";
+import { signInWithEmailAndPassword, signInWithPopup, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
 import OpenAI from 'openai';
 
-
 export default function Home() {
+  const [user, setUser] = useState(null);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+
   const [inventory, setInventory] = useState([])
   const [open, setOpen] = useState(false)
   const [itemName, setItemName] = useState('')
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [openCamera, setOpenCamera] = useState(false);
@@ -22,6 +29,35 @@ export default function Home() {
     dangerouslyAllowBrowser: true,
   });
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        updateInventory(currentUser.uid);
+      } else {
+        setInventory([]);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const updateInventory = async (uid) => {
+    try {
+      const inventoryQuery = collection(firestore, 'users', uid, 'inventory');
+      const docs = await getDocs(inventoryQuery);
+
+      const inventoryList = [];
+      docs.forEach(doc => {
+        inventoryList.push({ name: doc.id, ...doc.data() });
+      });
+
+      console.log("Fetched Inventory:", inventoryList);
+      setInventory(inventoryList);
+    } catch (error) {
+      console.error("Error fetching inventory:", error);
+    }
+  };
+
   const handleCameraAccess = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -31,50 +67,41 @@ export default function Home() {
     }
   }
 
-  const updateInventory = async () => {
-    const snapshot = query(collection(firestore, 'inventory'))
-    const docs = await getDocs(snapshot)
-    const inventoryList = []
-    docs.forEach((doc) => {
-      inventoryList.push({
-        name: doc.id,
-        ...doc.data(),
-      })
-    })
-    setInventory(inventoryList)
-  }
-  const normalizeName = (name) => name.toLowerCase();
   const addItem = async (item) => {
-    const normalizedItem = normalizeName(item);
-    const docRef = doc(collection(firestore, 'inventory'), item)
-    const docSnap = await getDoc(docRef)
+    if (!user) return;
+    const uid = user.uid;
+    const itemRef = doc(firestore, 'users', uid, 'inventory', item.toLowerCase());
+    const itemSnap = await getDoc(itemRef);
 
-    if (docSnap.exists()) {
-      const { quantity } = docSnap.data()
-      await setDoc(docRef, { quantity: quantity + 1 });
+    if (itemSnap.exists()) {
+      const { quantity } = itemSnap.data();
+      await setDoc(itemRef, { quantity: quantity + 1 });
     } else {
-      await setDoc(docRef, { quantity: 1 });
+      await setDoc(itemRef, { quantity: 1 });
     }
 
-    await updateInventory()
+    await updateInventory(uid); // Refresh UI
   };
 
-  const removeItem = async (item) => {
-    const normalizedItem = normalizeName(item);
-    const docRef = doc(collection(firestore, 'inventory'), item)
-    const docSnap = await getDoc(docRef)
 
-    if (docSnap.exists()) {
-      const { quantity } = docSnap.data()
-      if (quantity == 1) {
-        await deleteDoc(docRef)
+  const removeItem = async (item) => {
+    if (!user) return;
+    const uid = user.uid;
+    const itemRef = doc(firestore, 'users', uid, 'inventory', item.toLowerCase());
+    const itemSnap = await getDoc(itemRef);
+
+    if (itemSnap.exists()) {
+      const { quantity } = itemSnap.data();
+      if (quantity > 1) {
+        await setDoc(itemRef, { quantity: quantity - 1 });
       } else {
-        await setDoc(docRef, { quantity: quantity - 1 })
+        await deleteDoc(itemRef);
       }
     }
 
-    await updateInventory()
-  }
+    await updateInventory(uid); // Refresh UI
+  };
+
 
   const captureImage = () => {
     setImageDataUrl('');
@@ -148,17 +175,96 @@ export default function Home() {
   };
 
   useEffect(() => {
-    updateInventory()
-  }, [])
+    console.log("Calling updateInventory...");
+    updateInventory();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setAuthError('');
+    try {
+      await signInWithPopup(auth, googleProvider);
+      // onAuthStateChanged listener will update user
+    } catch (error) {
+      setAuthError(error.message);
+    }
+  };
+
+  const handleEmailLogin = async () => {
+    setAuthError('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      setAuthError(error.message);
+    }
+  };
+
+  const handleRegister = async () => {
+    setAuthError('');
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      setAuthError(error.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
+
+  if (!user) {
+    return (
+      <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100vh" gap={2} px={4}>
+        <Typography variant="h4">{authMode === 'login' ? 'Login' : 'Register'}</Typography>
+        <TextField
+          label="Email"
+          variant="outlined"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          fullWidth
+        />
+        <TextField
+          label="Password"
+          type="password"
+          variant="outlined"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          fullWidth
+        />
+        {authError && <Typography color="error">{authError}</Typography>}
+        <Stack direction="row" spacing={2} mt={2} width="100%">
+          {authMode === 'login' ? (
+            <>
+              <Button variant="contained" fullWidth onClick={handleEmailLogin}>Login</Button>
+              <Button variant="outlined" fullWidth onClick={() => setAuthMode('register')}>Switch to Register</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="contained" fullWidth onClick={handleRegister}>Register</Button>
+              <Button variant="outlined" fullWidth onClick={() => setAuthMode('login')}>Switch to Login</Button>
+            </>
+          )}
+        </Stack>
+        <Typography variant="body1" mt={2}>OR</Typography>
+        <Button variant="contained" fullWidth onClick={handleGoogleLogin} sx={{ mt: 1 }}>
+          Sign in with Google
+        </Button>
+      </Box>
+    );
+  }
 
   return (
-    <Box width="100vw" height="100vh" display="flex" flexDirection="column" justifyContent="center" alignItems="center" gap={2}>
+    <Box width="100vw" height="100vh" display="flex" flexDirection="column" justifyContent="center" alignItems="center" gap={2} p={2}>
       <Typography variant="h3" color="#333" textAlign="center">
-        Inventory List
+        Inventory List for {user.email.split('@')[0]}
       </Typography>
+
+      <Button variant="outlined" color="error" onClick={handleLogout} sx={{ alignSelf: 'flex-end' }}>
+        Logout
+      </Button>
+
       <Stack direction="row" spacing={2}>
         <Modal open={open} onClose={handleClose}>
-          <Box position="absolute" top="50%" left="50%" width={400} bgcolor="white" boder="2px solid #000" boxShadow={24} p={4} display="flex" flexDirection="column" gap={3} sx={{ transform: "translate(-50%,-50%)" }}>
+          <Box position="absolute" top="50%" left="50%" width={400} bgcolor="white" border="2px solid #000" boxShadow={24} p={4} display="flex" flexDirection="column" gap={3} sx={{ transform: "translate(-50%,-50%)" }}>
             <Typography variant="h6">Add Item</Typography>
             <Stack width="100%" direction="row" spacing={2}>
               <TextField variant="outlined" fullWidth value={itemName} onChange={(e) => { setItemName(e.target.value) }} />
@@ -175,17 +281,13 @@ export default function Home() {
           </Box>
         </Modal>
 
-        <Button
-          variant="contained"
-          onClick={() => {
-            handleOpen()
-          }}
-        >
+        <Button variant="contained" onClick={() => { handleOpen() }}>
           Add New Item
         </Button>
         <Button variant="contained" color="primary" onClick={handleCameraOpen}>
           Open Camera
         </Button>
+
         <Modal
           open={openCamera}
           onClose={handleCameraClose}
@@ -226,46 +328,41 @@ export default function Home() {
               <Button variant="outlined" color="secondary" onClick={handleCameraClose} sx={{ mt: 2 }}>
                 Close
               </Button>
-              </Stack>
+            </Stack>
           </Box>
         </Modal>
       </Stack>
-      <Box border="1px solid #333">
-        <Box width="800px" height="100px" bgcolor="#ADD8E6" display="flex" alignItems="center" justifyContent="center">
-          <Stack direction="row" spacing={30}>
-            <Typography varient="h2" color="#333">
-              Items
-            </Typography>
-            <Typography varient="h2" color="#333">
-              Quantity
-            </Typography>
-            <Typography varient="h2" color="#333">
-              Actions
-            </Typography>
-          </Stack>
+
+      <Box border="1px solid #333" maxWidth={800} width="100%">
+        <Box width="100%" height="50px" bgcolor="#ADD8E6" display="flex" alignItems="center" justifyContent="space-around">
+          <Typography variant="h6" color="#333" flex={2} textAlign="center">Items</Typography>
+          <Typography variant="h6" color="#333" flex={1} textAlign="center">Quantity</Typography>
+          <Typography variant="h6" color="#333" flex={2} textAlign="center">Actions</Typography>
         </Box>
-        <Stack width="800px" height="300px" spacing={2} overflow="auto">
+        <Stack width="100%" maxHeight={300} spacing={2} overflow="auto" p={1}>
           {inventory.map(({ name, quantity }) => (
-            <Box key={name} width="100%" minHeight="150px" display="flex" alignItems="center" justifyContent="space-between" bgcolor="#f0f0f0" padding={5}>
-              <Typography variant="h3" color="#333" textAlign="center">
+            <Box key={name} width="100%" minHeight="50px" display="flex" alignItems="center" justifyContent="space-around" bgcolor="#f0f0f0" padding={1}>
+              <Typography variant="body1" color="#333" flex={2} textAlign="center" sx={{ userSelect: 'none' }}>
                 {name.charAt(0).toUpperCase() + name.slice(1)}
               </Typography>
-              <Typography variant="h3" color="#333" textAlign="center">
+              <Typography variant="body1" color="#333" flex={1} textAlign="center" sx={{ userSelect: 'none' }}>
                 {quantity}
               </Typography>
-              <Stack direction="row" spacing={2}>
+              <Stack direction="row" spacing={1} flex={2} justifyContent="center">
                 <Button
                   variant="contained"
+                  size="small"
                   onClick={() => {
-                    addItem(name)
+                    addItem(name);
                   }}
                 >
                   Add
                 </Button>
                 <Button
                   variant="contained"
+                  size="small"
                   onClick={() => {
-                    removeItem(name)
+                    removeItem(name);
                   }}
                 >
                   Remove
@@ -277,4 +374,4 @@ export default function Home() {
       </Box>
     </Box>
   );
-} 
+}
