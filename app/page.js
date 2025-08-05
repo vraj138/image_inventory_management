@@ -129,7 +129,10 @@ export default function Home() {
           {
             role: "user",
             content: [
-              { type: "text", text: "What kind of product I am holding in my hands? Just return the product name. You don't have to give my brand names, just return me type of thing I am holding in my hands and also just return the name" },
+              {
+                type: "text",
+                text: "Look at the image and return only a comma-separated list of all general product types you see in the shopping cart. Do not include brand names, descriptions, or any extra text. Just output the list like this: apple, banana, chips, water bottle.Do not include phrases like ‘I see’, ‘In the image’, or anything else — just the list.",
+              },
               {
                 type: "image_url",
                 image_url: {
@@ -146,9 +149,13 @@ export default function Home() {
       // const result = await response.json();
       // console.log('Analysis result:', result);
       const content = response.choices[0].message.content;
-      const productName = content.replace(/^Detected product: You are holding a /, '').replace(/[.!?]$/, '').trim();
-      console.log('Detected product:', productName);
-      await addItem(productName);
+      console.log("Detected items string:", content);
+
+      const items = content.split(',').map(item => item.trim().toLowerCase());
+
+      for (const item of items) {
+        await addItem(item);
+      }
     } catch (error) {
       console.error('Error submitting image:', error);
     }
