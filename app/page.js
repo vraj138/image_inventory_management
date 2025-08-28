@@ -58,14 +58,30 @@ export default function Home() {
     }
   };
 
+  // const handleCameraAccess = async () => { 
+  //   try { 
+  //     const stream = await navigator.mediaDevices.getUserMedia({ video: true }); 
+  //     videoRef.current.srcObject = stream; 
+  //   } catch (error) { 
+  //     console.error("Error accessing the camera:", error); 
+  //   } 
+  // }
   const handleCameraAccess = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = stream;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" }, // Prefer back camera on phones
+        },
+        audio: false,
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
     } catch (error) {
       console.error("Error accessing the camera:", error);
     }
-  }
+  };
+
 
   const addItem = async (item) => {
     if (!user) return;
@@ -103,13 +119,28 @@ export default function Home() {
   };
 
 
+  // const captureImage = () => {
+  //   setImageDataUrl('');
+  //   const context = canvasRef.current.getContext('2d');
+  //   context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
+  //   const dataUrl = canvasRef.current.toDataURL('image/png');
+  //   setImageDataUrl(dataUrl);
+  // };
   const captureImage = () => {
     setImageDataUrl('');
-    const context = canvasRef.current.getContext('2d');
-    context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-    const dataUrl = canvasRef.current.toDataURL('image/png');
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    // Match canvas size to video stream
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/png');
     setImageDataUrl(dataUrl);
   };
+
 
   const downloadImage = () => {
     const a = document.createElement('a');
@@ -315,7 +346,15 @@ export default function Home() {
             }}
           >
             <h2 id="camera-modal-title">Camera Feed</h2>
-            <video ref={videoRef} autoPlay style={{ width: '100%' }} />
+            {/* <video ref={videoRef} autoPlay style={{ width: '100%' }} /> */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline   // required for iOS Safari
+              muted         // prevents autoplay block
+              style={{ width: '100%' }}
+            />
+
             <canvas ref={canvasRef} style={{ display: 'none' }} width={400} height={300} />
             <Stack spacing={2}>
               <Button variant="outlined" color="secondary" onClick={captureImage} sx={{ mt: 2 }}>
