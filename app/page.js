@@ -352,7 +352,10 @@ export default function Home() {
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              width: 400,
+              width: '90vw',          
+              maxWidth: 400,
+              maxHeight: '90vh',      
+              overflowY: 'auto',
               bgcolor: 'background.paper',
               border: '2px solid #000',
               boxShadow: 24,
@@ -364,8 +367,8 @@ export default function Home() {
             <video
               ref={videoRef}
               autoPlay
-              playsInline   // required for iOS Safari
-              muted         // prevents autoplay block
+              playsInline   
+              muted         
               style={{ width: '100%' }}
             />
 
