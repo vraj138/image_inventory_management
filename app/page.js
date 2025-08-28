@@ -22,6 +22,8 @@ export default function Home() {
   const canvasRef = useRef(null);
   const [openCamera, setOpenCamera] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState('');
+  const [captured, setCaptured] = useState(false);
+
 
   // OpenAI
   const openai = new OpenAI({
@@ -58,19 +60,11 @@ export default function Home() {
     }
   };
 
-  // const handleCameraAccess = async () => { 
-  //   try { 
-  //     const stream = await navigator.mediaDevices.getUserMedia({ video: true }); 
-  //     videoRef.current.srcObject = stream; 
-  //   } catch (error) { 
-  //     console.error("Error accessing the camera:", error); 
-  //   } 
-  // }
   const handleCameraAccess = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: "environment" }, // Prefer back camera on phones
+          facingMode: { ideal: "environment" }, 
         },
         audio: false,
       });
@@ -96,7 +90,7 @@ export default function Home() {
       await setDoc(itemRef, { quantity: 1 });
     }
 
-    await updateInventory(uid); // Refresh UI
+    await updateInventory(uid); 
   };
 
 
@@ -115,46 +109,41 @@ export default function Home() {
       }
     }
 
-    await updateInventory(uid); // Refresh UI
+    await updateInventory(uid); 
   };
 
-  // const captureImage = () => {
-  //   setImageDataUrl('');
-  //   const video = videoRef.current;
-  //   const canvas = canvasRef.current;
-  //   const context = canvas.getContext('2d');
-
-  //   // Match canvas size to video stream
-  //   canvas.width = video.videoWidth;
-  //   canvas.height = video.videoHeight;
-
-  //   context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  //   const dataUrl = canvas.toDataURL('image/png');
-  //   setImageDataUrl(dataUrl);
-  // };
 
   const captureImage = () => {
-    setImageDataUrl('');
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
     const dataUrl = canvas.toDataURL('image/png');
     setImageDataUrl(dataUrl);
+    setCaptured(true);
 
     const stream = video.srcObject;
     if (stream) {
-      const tracks = stream.getTracks();
-      tracks.forEach((track) => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       video.srcObject = null;
     }
   };
 
-
+  const retakeImage = async () => {
+    setImageDataUrl('');
+    setCaptured(false);
+  
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoRef.current.srcObject = stream;
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+    }
+  };
 
   const downloadImage = () => {
     const a = document.createElement('a');
@@ -221,7 +210,7 @@ export default function Home() {
     if (stream) {
       const tracks = stream.getTracks();
       tracks.forEach((track) => track.stop());
-      videoRef.current.srcObject = null; // Clear the video element's source
+      videoRef.current.srcObject = null; 
     }
     setImageDataUrl('');
   };
@@ -352,9 +341,9 @@ export default function Home() {
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              width: '90vw',          
+              width: '90vw',
               maxWidth: 400,
-              maxHeight: '90vh',      
+              maxHeight: '90vh',
               overflowY: 'auto',
               bgcolor: 'background.paper',
               border: '2px solid #000',
@@ -364,20 +353,28 @@ export default function Home() {
           >
             <h2 id="camera-modal-title">Camera Feed</h2>
             {/* <video ref={videoRef} autoPlay style={{ width: '100%' }} /> */}
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline   
-              muted         
-              style={{ width: '100%' }}
-            />
+            {!captured && (
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: '100%' }}
+              />
+            )}
 
             <canvas ref={canvasRef} style={{ display: 'none' }} width={400} height={300} />
             <Stack spacing={2}>
-              <Button variant="outlined" color="secondary" onClick={captureImage} sx={{ mt: 2 }}>
-                Capture Image
-              </Button>
-              {imageDataUrl && (
+              {!captured ? (
+                <Button variant="outlined" color="secondary" onClick={captureImage} sx={{ mt: 2 }}>
+                  Capture Image
+                </Button>
+              ) : (
+                <Button variant="outlined" color="secondary" onClick={retakeImage} sx={{ mt: 2 }} >
+                  Retake Image
+                </Button>
+              )}
+              {captured && imageDataUrl && (
                 <>
                   <img src={imageDataUrl} alt="Captured" style={{ width: '100%', marginTop: '10px' }} />
                   <Stack width="100%" direction="row" spacing={2}>
