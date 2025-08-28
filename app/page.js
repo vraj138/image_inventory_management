@@ -118,28 +118,42 @@ export default function Home() {
     await updateInventory(uid); // Refresh UI
   };
 
-
   // const captureImage = () => {
   //   setImageDataUrl('');
-  //   const context = canvasRef.current.getContext('2d');
-  //   context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-  //   const dataUrl = canvasRef.current.toDataURL('image/png');
+  //   const video = videoRef.current;
+  //   const canvas = canvasRef.current;
+  //   const context = canvas.getContext('2d');
+
+  //   // Match canvas size to video stream
+  //   canvas.width = video.videoWidth;
+  //   canvas.height = video.videoHeight;
+
+  //   context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  //   const dataUrl = canvas.toDataURL('image/png');
   //   setImageDataUrl(dataUrl);
   // };
+
   const captureImage = () => {
     setImageDataUrl('');
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
-    // Match canvas size to video stream
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/png');
     setImageDataUrl(dataUrl);
+
+    const stream = video.srcObject;
+    if (stream) {
+      const tracks = stream.getTracks();
+      tracks.forEach((track) => track.stop());
+      video.srcObject = null;
+    }
   };
+
 
 
   const downloadImage = () => {
