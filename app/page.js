@@ -64,7 +64,7 @@ export default function Home() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: "environment" }, 
+          facingMode: { ideal: "environment" },
         },
         audio: false,
       });
@@ -90,7 +90,7 @@ export default function Home() {
       await setDoc(itemRef, { quantity: 1 });
     }
 
-    await updateInventory(uid); 
+    await updateInventory(uid);
   };
 
 
@@ -109,7 +109,7 @@ export default function Home() {
       }
     }
 
-    await updateInventory(uid); 
+    await updateInventory(uid);
   };
 
 
@@ -136,7 +136,7 @@ export default function Home() {
   const retakeImage = async () => {
     setImageDataUrl('');
     setCaptured(false);
-  
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       videoRef.current.srcObject = stream;
@@ -165,7 +165,37 @@ export default function Home() {
             content: [
               {
                 type: "text",
-                text: "Look at the image and return only a comma-separated list of all general product types you see in the shopping cart. Do not include brand names, descriptions, or any extra text. Just output the list like this: apple, banana, chips, water bottle.Do not include phrases like ‘I see’, ‘In the image’, or anything else — just the list.",
+                text: `You are analyzing an image of products for inventory management in a small convenience store.
+
+                        Rules:
+                        - Identify each product clearly, including its brand or unique type if visible (e.g., "Poland Spring water bottle", "Kirkland water bottle", "Voss water bottle").
+                        - If multiple of the exact same product are present, group them and count the quantity.
+                        - If similar products are different brands, list them separately.
+                        - For books or items with many titles, list each unique title separately. If the exact title is not clear, use "book" plus a distinguishing feature (like cover color or size) so they don’t merge incorrectly.
+                        - Do not include prices, long descriptions, or filler text.
+                        - Output ONLY in this format:
+
+                        item: quantity
+                        item: quantity
+                        ...
+
+                        Examples:
+                        If the image has 3 Poland Spring bottles, 2 Kirkland bottles, and 1 Voss bottle:
+                        poland spring water bottle: 3
+                        kirkland water bottle: 2
+                        voss water bottle: 1
+
+                        If the image has 5 books with different titles:
+                        harry potter book: 1
+                        lord of the rings book: 1
+                        math textbook: 1
+                        notebook: 2
+
+                        If the image has 2 coke cans and 1 pepsi can:
+                        coke can: 2
+                        pepsi can: 1
+
+                        Do not add explanations or extra text. Only output the list.`,
               },
               {
                 type: "image_url",
@@ -185,10 +215,22 @@ export default function Home() {
       const content = response.choices[0].message.content;
       console.log("Detected items string:", content);
 
-      const items = content.split(',').map(item => item.trim().toLowerCase());
+      // const items = content.split(',').map(item => item.trim().toLowerCase());
 
-      for (const item of items) {
-        await addItem(item);
+      // for (const item of items) {
+      //   await addItem(item);
+      // }
+      const lines = content.split("\n");
+      for (const line of lines) {
+        if (!line.includes(":")) continue;
+
+        const [itemRaw, quantityRaw] = line.split(":").map(s => s.trim().toLowerCase());
+        const item = itemRaw;
+        const quantity = parseInt(quantityRaw, 10) || 1;
+
+        for (let i = 0; i < quantity; i++) {
+          await addItem(item);
+        }
       }
     } catch (error) {
       console.error('Error submitting image:', error);
@@ -210,7 +252,7 @@ export default function Home() {
     if (stream) {
       const tracks = stream.getTracks();
       tracks.forEach((track) => track.stop());
-      videoRef.current.srcObject = null; 
+      videoRef.current.srcObject = null;
     }
     setImageDataUrl('');
   };
