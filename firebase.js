@@ -5,12 +5,12 @@ import { getFirestore} from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: "inventory-management-b3ea6.firebaseapp.com",
-  projectId: "inventory-management-b3ea6",
-  storageBucket: "inventory-management-b3ea6.firebasestorage.app",
-  messagingSenderId: "996127832596",
-  appId: "1:996127832596:web:372714ab034811f2cb4501",
-  measurementId: "G-8NXCGDHH18"
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_MEASUREMENT_ID
 };
 
 // Initialize Firebase
